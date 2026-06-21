@@ -9,20 +9,42 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
-      - name: Install dependencies
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
+
+      - name: Start server
+        run: |
+          node server.js &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/health > /dev/null; then
+              echo "Servidor listo"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "El servidor no respondió a tiempo"
+          exit 1
+
       - name: Run tests
+        env:
+          HEADLESS: 'true'
         run: pytest test_booking_flow.py -v
-        
