@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cal.com - Booking Flow</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #1a202c; font-size: 28px; margin-bottom: 10px; }
+        .header p { color: #718096; font-size: 14px; }
+        .form-group { margin-bottom: 20px; }
+        label {
+            display: block;
+            color: #2d3748;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        .error-message { color: #e53e3e; font-size: 13px; margin-top: 5px; display: none; }
+        .error-message.show { display: block; }
+        .success-message {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .success-message.show { display: block; }
+        .slot-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .slot-button {
+            padding: 10px;
+            border: 2px solid #cbd5e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .slot-button:hover { border-color: #667eea; color: #667eea; }
+        .slot-button.selected { background: #667eea; color: white; border-color: #667eea; }
+        .slot-button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .btn-submit:hover { transform: translateY(-2px); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+        .availability-section {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Agendar Cita</h1>
+            <p>Cal.com - Booking Flow</p>
+        </div>
+
+        <div id="successMessage" class="success-message"></div>
+
+        <form id="bookingForm">
+            <div class="form-group">
+                <label for="eventType">Tipo de Evento *</label>
+                <select id="eventType" required>
+                    <option value="">-- Seleccionar --</option>
+                </select>
+                <div id="eventTypeError" class="error-message"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="bookingDate">Fecha *</label>
+                <input type="date" id="bookingDate" required>
+                <div id="dateError" class="error-message"></div>
+            </div>
+
+            <div class="availability-section">
+                <label>Horarios Disponibles *</label>
+                <div class="slot-grid" id="slotsContainer">
+                    <p style="grid-column: 1/-1; text-align: center; color: #718096;">Selecciona una fecha</p>
+                </div>
+                <input type="hidden" id="selectedSlot" name="time">
+                <div id="slotError" class="error-message"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="attendeeName">Nombre Completo *</label>
+                <input type="text" id="attendeeName" placeholder="Ej: Juan Pérez" required>
+                <div id="nameError" class="error-message"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="attendeeEmail">Correo *</label>
+                <input type="email" id="attendeeEmail" placeholder="Ej: juan@example.com" required>
+                <div id="emailError" class="error-message"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="attendeePhone">Teléfono</label>
+                <input type="tel" id="attendeePhone" placeholder="+52 1234567890">
+            </div>
+
+            <div class="form-group">
+                <label for="attendeeDescription">Notas</label>
+                <textarea id="attendeeDescription"></textarea>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">Confirmar Reserva</button>
+        </form>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+
+        async function loadEventTypes() {
+            try {
+                const res = await fetch(`${API_URL}/event-types`);
+                const data = await res.json();
+                if (data.success) {
+                    const select = document.getElementById('eventType');
+                    data.data.forEach(e => {
+                        const opt = document.createElement('option');
+                        opt.value = e.id;
+                        opt.textContent = `${e.title} (${e.length} min)`;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                alert('Error cargando eventos: ' + e.message);
+            }
+        }
+
+        const dateInput = document.getElementById('bookingDate');
+        dateInput.min = new Date().toISOString().split('T')[0];
+
+        dateInput.addEventListener('change', async (e) => {
+            const date = e.target.value;
+            const eventTypeId = document.getElementById('eventType').value;
+
+            if (!date || !eventTypeId) {
+                document.getElementById('slotsContainer').innerHTML = 
+                    '<p style="grid-column: 1/-1; text-align: center; color: #718096;">Completa los campos</p>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/available-slots?date=${date}&eventTypeId=${eventTypeId}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    const slots = data.data.availableSlots;
+                    const container = document.getElementById('slotsContainer');
+                    
+                    if (slots.length === 0) {
+                        container.innerHTML = '<p style="grid-column: 1/-1;">No hay horarios</p>';
+                        return;
+                    }
+
+                    container.innerHTML = slots.map(slot => 
+                        `<button type="button" class="slot-button" data-time="${slot}">${slot}</button>`
+                    ).join('');
+
+                    document.querySelectorAll('.slot-button').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            document.querySelectorAll('.slot-button').forEach(b => b.classList.remove('selected'));
+                            btn.classList.add('selected');
+                            document.getElementById('selectedSlot').value = btn.dataset.time;
+                        });
+                    });
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        });
+
+        document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const eventTypeId = document.getElementById('eventType').value;
+            const date = document.getElementById('bookingDate').value;
+            const time = document.getElementById('selectedSlot').value;
+            const name = document.getElementById('attendeeName').value.trim();
+            const email = document.getElementById('attendeeEmail').value.trim();
+
+            document.querySelectorAll('.error-message').forEach(el => {
+                el.classList.remove('show');
+            });
+
+            let valid = true;
+
+            if (!eventTypeId) {
+                document.getElementById('eventTypeError').textContent = 'Requerido';
+                document.getElementById('eventTypeError').classList.add('show');
+                valid = false;
+            }
+            if (!date) {
+                document.getElementById('dateError').textContent = 'Requerido';
+                document.getElementById('dateError').classList.add('show');
+                valid = false;
+            }
+            if (!time) {
+                document.getElementById('slotError').textContent = 'Requerido';
+                document.getElementById('slotError').classList.add('show');
+                valid = false;
+            }
+            if (!name || name.length < 3) {
+                document.getElementById('nameError').textContent = 'Mínimo 3 caracteres';
+                document.getElementById('nameError').classList.add('show');
+                valid = false;
+            }
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                document.getElementById('emailError').textContent = 'Correo inválido';
+                document.getElementById('emailError').classList.add('show');
+                valid = false;
+            }
+
+            if (!valid) return;
+
+            try {
+                const res = await fetch(`${API_URL}/bookings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        eventTypeId: parseInt(eventTypeId),
+                        date, time,
+                        attendeeName: name,
+                        attendeeEmail: email,
+                        attendeePhone: document.getElementById('attendeePhone').value,
+                        description: document.getElementById('attendeeDescription').value,
+                    }),
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    const msg = document.getElementById('successMessage');
+                    msg.textContent = `✓ ${result.message}! Cita: ${date} ${time}. Confirmación en ${email}`;
+                    msg.classList.add('show');
+                    document.getElementById('bookingForm').reset();
+                } else {
+                    if (result.errors) {
+                        Object.entries(result.errors).forEach(([k, v]) => {
+                            const el = document.getElementById(`${k}Error`);
+                            if (el) {
+                                el.textContent = v;
+                                el.classList.add('show');
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadEventTypes);
+    </script>
+</body>
+</html>
